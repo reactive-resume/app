@@ -19,6 +19,7 @@ export default defineConfig({
 		"en-US",
 		"en-GB",
 		"es-ES",
+		"ckb-IQ",
 		"fa-IR",
 		"fi-FI",
 		"fr-FR",

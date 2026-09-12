@@ -27,6 +27,7 @@ export const localeMap = {
 	"bg-BG": msg`Bulgarian`,
 	"bn-BD": msg`Bengali`,
 	"ca-ES": msg`Catalan`,
+	"ckb-IQ": msg`Kurdish Sorani`,
 	"cs-CZ": msg`Czech`,
 	"da-DK": msg`Danish`,
 	"de-DE": msg`German`,

@@ -3361,6 +3361,10 @@ msgstr "รู้สถานะปัจจุบัน"
 #: src/libs/locale.ts
 msgid "Korean"
 msgstr "เกาหลี"
+#: src/libs/locale.ts
+msgid "Kurdish Sorani"
+msgstr "เคิร์ดโซรานี"
+
 
 #. Short field label for custom display text associated with a URL
 #: src/components/input/url-input.tsx

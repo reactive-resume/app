@@ -3361,6 +3361,10 @@ msgstr "Luôn nắm rõ tình hình"
 #: src/libs/locale.ts
 msgid "Korean"
 msgstr "Tiếng Hàn"
+#: src/libs/locale.ts
+msgid "Kurdish Sorani"
+msgstr "người Kurd Sorani"
+
 
 #. Short field label for custom display text associated with a URL
 #: src/components/input/url-input.tsx

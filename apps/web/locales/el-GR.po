@@ -3361,6 +3361,10 @@ msgstr "Μάθετε πού βρίσκονται τα πράγματα"
 #: src/libs/locale.ts
 msgid "Korean"
 msgstr "Κορεατικά"
+#: src/libs/locale.ts
+msgid "Kurdish Sorani"
+msgstr "Κουρδικά Σοράνι"
+
 
 #. Short field label for custom display text associated with a URL
 #: src/components/input/url-input.tsx

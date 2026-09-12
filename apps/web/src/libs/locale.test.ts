@@ -15,6 +15,10 @@ describe("isLocale", () => {
 		expect(isLocale("en-US")).toBe(true);
 	});
 
+	it("returns true for Kurdish Sorani ckb-IQ", () => {
+		expect(isLocale("ckb-IQ")).toBe(true);
+	});
+
 	it("returns true for de-DE", () => {
 		expect(isLocale("de-DE")).toBe(true);
 	});

@@ -3361,6 +3361,10 @@ msgstr "اعرف آخر المستجدات"
 #: src/libs/locale.ts
 msgid "Korean"
 msgstr "الكورية"
+#: src/libs/locale.ts
+msgid "Kurdish Sorani"
+msgstr "كردي سوراني"
+
 
 #. Short field label for custom display text associated with a URL
 #: src/components/input/url-input.tsx
