@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { dbMock, queryMock, queryState } = vi.hoisted(() => {
+const { dbMock, deleteMock, queryMock, queryState } = vi.hoisted(() => {
 	const state = {
 		rows: [] as unknown[],
 		whereArg: undefined as unknown,
@@ -18,9 +18,11 @@ const { dbMock, queryMock, queryState } = vi.hoisted(() => {
 		}),
 		limit: vi.fn(async () => state.rows),
 	};
+	const deleteQuery = { where: vi.fn(async () => undefined) };
 
 	return {
-		dbMock: { select: vi.fn(() => query) },
+		dbMock: { select: vi.fn(() => query), delete: vi.fn(() => deleteQuery) },
+		deleteMock: deleteQuery,
 		queryMock: query,
 		queryState: state,
 	};
@@ -118,5 +120,55 @@ describe("aiProvidersService", () => {
 		});
 		expect(queryState.orderByArgs).toEqual([{ type: "asc", value: "ai_provider.created_at" }]);
 		expect(queryMock.limit).toHaveBeenCalledWith(1);
+	});
+
+	describe("missing ai_providers table (Postgres 42P01)", () => {
+		// What pg throws for a missing relation, wrapped by Drizzle: DrizzleQueryError.cause is the
+		// driver error carrying `code: "42P01"`.
+		function missingTableError() {
+			const error = new Error('Failed query: select "id" from "ai_providers"');
+			error.name = "DrizzleQueryError";
+			(error as Error & { cause: unknown }).cause = {
+				code: "42P01",
+				message: 'relation "ai_providers" does not exist',
+			};
+			return error;
+		}
+
+		it("maps a missing-table failure on list to PRECONDITION_FAILED", async () => {
+			queryMock.orderBy.mockImplementationOnce(() => {
+				throw missingTableError();
+			});
+
+			await expect(aiProvidersService.list({ userId: "user-1" })).rejects.toMatchObject({
+				code: "PRECONDITION_FAILED",
+				message: expect.stringContaining("db:migrate"),
+			});
+		});
+
+		it("maps a missing-table failure on a write path to PRECONDITION_FAILED", async () => {
+			deleteMock.where.mockRejectedValueOnce(missingTableError());
+
+			await expect(aiProvidersService.delete({ id: "provider-1", userId: "user-1" })).rejects.toMatchObject({
+				code: "PRECONDITION_FAILED",
+			});
+		});
+
+		it("still maps when the Postgres error sits deeper in the cause chain", async () => {
+			const wrapped = new Error("query wrapper");
+			(wrapped as Error & { cause: unknown }).cause = missingTableError();
+			queryMock.limit.mockRejectedValueOnce(wrapped);
+
+			await expect(aiProvidersService.getDefaultRunnable({ userId: "user-1" })).rejects.toMatchObject({
+				code: "PRECONDITION_FAILED",
+			});
+		});
+
+		it("rethrows database errors that are not missing-relation failures", async () => {
+			const connectionError = new Error("connection terminated unexpectedly");
+			queryMock.limit.mockRejectedValueOnce(connectionError);
+
+			await expect(aiProvidersService.getDefaultRunnable({ userId: "user-1" })).rejects.toBe(connectionError);
+		});
 	});
 });

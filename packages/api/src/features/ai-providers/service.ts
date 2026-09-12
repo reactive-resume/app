@@ -86,6 +86,38 @@ function normalizeBaseUrl(input: { provider: AIProvider; baseURL?: string | null
 	return resolveAiBaseUrl({ provider: input.provider, baseURL: trimmed });
 }
 
+// ponytail: Postgres reports a missing relation as error code 42P01; Drizzle wraps the driver
+// error in a DrizzleQueryError's `cause`. Self-hosted deployments that never ran `pnpm db:migrate`
+// hit this on every ai_providers query, so map it to PRECONDITION_FAILED and let clients show the
+// schema-not-migrated banner instead of a generic failure.
+function isMissingRelationError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; depth < 8 && current !== null && current !== undefined; depth++) {
+		if ((current as { code?: unknown }).code === "42P01") return true;
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
+}
+
+async function mapMissingRelationError<T>(run: () => Promise<T>): Promise<T> {
+	try {
+		return await run();
+	} catch (error) {
+		if (isMissingRelationError(error)) {
+			throw new ORPCError("PRECONDITION_FAILED", {
+				message:
+					"AI providers are unavailable because the database schema has not been migrated. Run pnpm db:migrate before starting the server.",
+				cause: error,
+			});
+		}
+		throw error;
+	}
+}
+
+function withAiProvidersSchema<Input, Output>(run: (input: Input) => Promise<Output>) {
+	return (input: Input) => mapMissingRelationError(() => run(input));
+}
+
 async function getOwnedProvider(input: { id: string; userId: string }) {
 	const [provider] = await db
 		.select()
@@ -99,7 +131,7 @@ async function getOwnedProvider(input: { id: string; userId: string }) {
 }
 
 export const aiProvidersService = {
-	list: async (input: { userId: string }) => {
+	list: withAiProvidersSchema(async (input: { userId: string }) => {
 		assertCredentialEncryptionConfigured();
 
 		const providers = await db
@@ -112,9 +144,9 @@ export const aiProvidersService = {
 			);
 
 		return providers.map(toResponse);
-	},
+	}),
 
-	getRunnableById: async (input: { id: string; userId: string }) => {
+	getRunnableById: withAiProvidersSchema(async (input: { id: string; userId: string }) => {
 		assertCredentialEncryptionConfigured();
 
 		const provider = await getOwnedProvider(input);
@@ -127,9 +159,9 @@ export const aiProvidersService = {
 			apiKey: decryptCredential(provider.encryptedApiKey),
 			baseURL: provider.baseUrl ?? "",
 		};
-	},
+	}),
 
-	getDefaultRunnable: async (input: { userId: string }) => {
+	getDefaultRunnable: withAiProvidersSchema(async (input: { userId: string }) => {
 		assertCredentialEncryptionConfigured();
 
 		const [provider] = await db
@@ -152,9 +184,9 @@ export const aiProvidersService = {
 					baseURL: provider.baseUrl ?? "",
 				}
 			: null;
-	},
+	}),
 
-	create: async (input: CreateAiProviderInput) => {
+	create: withAiProvidersSchema(async (input: CreateAiProviderInput) => {
 		assertCredentialEncryptionConfigured();
 
 		const encrypted = encryptCredential(input.apiKey.trim());
@@ -173,9 +205,9 @@ export const aiProvidersService = {
 		if (!provider) throw new Error("AI_PROVIDER_CREATE_FAILED");
 
 		return toResponse(provider);
-	},
+	}),
 
-	update: async (input: UpdateAiProviderInput) => {
+	update: withAiProvidersSchema(async (input: UpdateAiProviderInput) => {
 		assertCredentialEncryptionConfigured();
 
 		const existing = await getOwnedProvider(input);
@@ -210,17 +242,17 @@ export const aiProvidersService = {
 
 		if (!updated) throw new ORPCError("NOT_FOUND");
 		return toResponse(updated);
-	},
+	}),
 
-	delete: async (input: { id: string; userId: string }) => {
+	delete: withAiProvidersSchema(async (input: { id: string; userId: string }) => {
 		assertCredentialEncryptionConfigured();
 
 		await db
 			.delete(schema.aiProvider)
 			.where(and(eq(schema.aiProvider.id, input.id), eq(schema.aiProvider.userId, input.userId)));
-	},
+	}),
 
-	test: async (input: { id: string; userId: string }) => {
+	test: withAiProvidersSchema(async (input: { id: string; userId: string }) => {
 		assertCredentialEncryptionConfigured();
 
 		const provider = await getOwnedProvider(input);
@@ -264,12 +296,12 @@ export const aiProvidersService = {
 
 			throw error;
 		}
-	},
+	}),
 
-	markUsed: async (input: { id: string; userId: string }) => {
+	markUsed: withAiProvidersSchema(async (input: { id: string; userId: string }) => {
 		await db
 			.update(schema.aiProvider)
 			.set({ lastUsedAt: new Date() })
 			.where(and(eq(schema.aiProvider.id, input.id), eq(schema.aiProvider.userId, input.userId)));
-	},
+	}),
 };
